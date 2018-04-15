@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 //#include <pthread.h>
-#include "utils.c"
-//#include "thpool.c"
+#include "utils.h"
+//#include "thpool.h"
 
 int index_in_alphabet(char t, char typ_alphabet_list[]) {
     int i;
@@ -32,7 +32,7 @@ node_t *CFL(char word[]) {
             if (j == word_len + 1 || word[j - 1] < word[i - 1]) {
                 while (k < i) {
                 	node_t *node = (node_t *) malloc(sizeof(node_t));
-                	node->factor = substring(word, k, k + j - i);
+                	node->factor = word;//substring(word, k, k + j - i);
                 	node->next = current_pointer;
                 	current_pointer = node;
                     k = k + j - i;
@@ -50,7 +50,7 @@ node_t *CFL(char word[]) {
     }
     return current_pointer;
 }
-
+/*
 // CFL - Lyndon factorization - Duval's algorithm - on a specific alphabet
 node_t *CFL_for_alphabet(char word[], char list_alphabet[]) {
 

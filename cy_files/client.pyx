@@ -7,17 +7,32 @@ from multiprocessing.managers import SyncManager
 
 # C definitions
 cdef extern from "../c_files/utils.h":
-    cdef struct node
-
-    cdef struct node:
+    #struct node
+    struct node:
         char *factor
         node *next
     ctypedef node node_t
 
-    cdef void print_list_reverse(node_t *node);
+cdef extern from "../c_files/utils.h":
+    char* substring(char word[], int x, int y)
 
-cdef extern from "../c_files/factorizations.h":
-        node_t *CFL(char word[])
+cdef extern from "../c_files/utils.h":
+    void print_list_reverse(node_t *node)
+
+cdef extern from "../c_files/utils.h":
+    void free_list(node_t* head)
+
+cdef extern from "../c_files/factorizations.c":
+    node_t *CFL(char word[])
+
+
+def call_c_CFL(str):
+    print("in1")
+    #aacfl_list = find_pre(str)
+    cfl_list = CFL(str)
+    #print_list_reverse(cfl_list)
+    #free_list(cfl_list)
+    print("in2")
 
 
 PORTNUM = 5000
@@ -44,11 +59,13 @@ def factorizer_worker(job_q, result_q):
     cdef extern from "c_files/utils.c":
         void print_list(node_t *node)
     """
+
     block = job_q.get_nowait() # oppure bloccante
-    #cfl_list = CFL(block[1])
+    #cfl_list = CFL(block[0])
     #print_list_reverse(cfl_list)
-
-
+    print("out1")
+    call_c_CFL(block[0])
+    print("out2")
 
 
 def mp_factorizer(shared_job_q, shared_result_q, nprocs):

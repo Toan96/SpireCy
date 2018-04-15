@@ -4,8 +4,8 @@
 #include "utils.h"
 
 int index_in_alphabet(char t, char typ_alphabet_list[]);
-node_t * CFL(char word[]);
-node_t * CFL_for_alphabet(char word[], char list_alphabet[]);
+node_t *CFL(char word[]);
+node_t *CFL_for_alphabet(char word[], char list_alphabet[]);
 node_t *find_pre(char word[]);
 node_t *find_pre_for_alphabet(char word[], char list_alphabet[]);
 void border(char p[], int **pi);
