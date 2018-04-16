@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <pthread.h>
+//#include <pthread.h>
 
 //struct of any list's node, generally nodes are considered in last-first order
 typedef struct node {
@@ -48,7 +48,7 @@ int check_word_and_alphabet(char word[], char list_alphabet[]) {
 	return 1;//true
 }
 
-void free_list(node_t* head) {
+void free_list(node_t *head) {
 	node_t* tmp;
 
 	while (head != NULL) {

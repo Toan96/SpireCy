@@ -1,18 +1,18 @@
 #ifndef UTILS_H_
 #define UTILS_H_
 
-#include <pthread.h>
+//#include <pthread.h>
 
 typedef struct node {
     char *factor;
     struct node *next;
 } node_t;
-
+/*
 typedef struct node_th {
 	pthread_t tid;
 	struct node_th *next;
 } node_thread;
-
+*/
 typedef struct param {
 	char *w;
 	char *list_alphabet;
@@ -22,7 +22,7 @@ typedef struct param {
 
 
 int check_word_and_alphabet(char word[], char list_alphabet[]);
-void free_list(node_t* head);
+void free_list(node_t *head);
 void print_list_reverse(node_t *node);
 void print_list(node_t *node);
 char *substring(char word[], int x, int y);
