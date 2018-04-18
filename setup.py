@@ -20,7 +20,7 @@ ext_modules = cythonize([Extension("client", ["cy_files/client.pyx", 'c_files/ut
 
 
 setup(
-  name = 'SpireCy',
-  cmdclass = {'build_ext': build_ext},
-  ext_modules = ext_modules
+  name='SpireCy',
+  cmdclass={'build_ext': build_ext},
+  ext_modules=ext_modules
 )

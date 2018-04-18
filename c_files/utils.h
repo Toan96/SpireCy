@@ -26,5 +26,6 @@ void free_list(node_t *head);
 void print_list_reverse(node_t *node);
 void print_list(node_t *node);
 char *substring(char word[], int x, int y);
+char *list_to_string(node_t *list, int reverse);
 
 #endif /* UTILS_H_ */

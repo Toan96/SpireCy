@@ -9,6 +9,8 @@ cdef extern from "../c_files/utils.h":
 
     void print_list_reverse(node_t *node)
 
+    char *list_to_string(node_t *list, int reverse)
+
 
 
 cdef extern from "../c_files/factorizations.h":

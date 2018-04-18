@@ -98,5 +98,43 @@ char *substring(char word[], int x, int y) {
 }
 
 
+char *list_to_string(node_t *list, int reverse) { //0 true 1 false
+
+    node_t *current = list;
+    node_t *prev = NULL;
+    if (reverse == 0) {
+        while(current->next != NULL) {
+            node_t *tmp = current;
+            current = current->next;
+            tmp->next = prev;
+            prev = tmp;
+	    }
+	    current->next = prev;
+    }
+
+    int allocated = 200;
+    char *to_string = (char *) malloc(allocated);
+    strcpy(to_string, "[ ");
+    int length = 4; //memory for [ ]\0
+    while (current != NULL) {
+        if (length + strlen(current->factor) > allocated) {
+            allocated += strlen(current->factor); //cosi sempre precisa
+            to_string = (char *) realloc(to_string, allocated);
+        }
+        strcat(to_string, current->factor);
+        if (current->next != NULL)
+            strcat(to_string, ", ");
+        length += strlen(current->factor);
+        current = current->next;
+    }
+    strcat(to_string, " ]");
+
+    if (strlen(to_string) < allocated) {
+        to_string = (char *) realloc(to_string, strlen(to_string));
+    }
+    return to_string;
+}
+
+
 
 

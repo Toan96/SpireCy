@@ -6,13 +6,8 @@ import time
 PORTNUM = 5000
 AUTHKEY = b'abc'
 LOCALHOST = '127.0.0.1'
+BLOCK_SIZE = 10
 
-"""
-cdef extern from "../c_files/main.c":
-    int main()
-
-main()
-"""
 
 #crea coda  # problema su windows
 def make_server_manager(port, authkey):
@@ -43,19 +38,20 @@ def runserver():
     shared_job_q = manager.get_job_q()
     shared_result_q = manager.get_result_q()
 
-    block_size = 10
     fasta = open('./fasta/example.fasta', 'r')
     sent_blocks = 0
+    last_block_size = 0
     while True:
         block = []
         pos = fasta.tell()
         if fasta.readline() == "":
             break
         fasta.seek(pos)
-        for i in range(block_size):
+        for i in range(BLOCK_SIZE):
             if i != 0:
                 pos = fasta.tell()
                 if fasta.readline() == "":
+                    last_block_size = i
                     break
                 fasta.seek(pos)
             block.append(fasta.readline().rstrip())
@@ -64,19 +60,32 @@ def runserver():
 
         #invio a coda
         shared_job_q.put(block)
-        sent_blocks = sent_blocks + 1
+        sent_blocks += 1
         print('blocco ' + repr(sent_blocks) + ' inviato')
     fasta.close()
 
-# ????
+    # create results file
+    filename = './fasta/results.txt'
+    #import os
+    #if os.path.exists(filename):
+    #   mode = 'a' # append if already exists
+    #else:
+    mode = 'w' # make a new file if not
+    results = open(filename, mode)
+    import datetime
+    results.write(datetime.datetime.now().ctime())                 
+    results.write("\n\n")
     # Wait until all results are ready in shared_result_q
     numresults = 0
-    resultdict = {}
-    while numresults < sent_blocks:
+    # resultdict = {}
+    while numresults < (sent_blocks * BLOCK_SIZE) - last_block_size:
+        # prende da coda_result id e fact e scrive su file
         outdict = shared_result_q.get()
-        resultdict.update(outdict)
-        numresults += len(outdict)
+        for read_id, fact in outdict.items():
+            results.write(str(read_id) + '\n' + str(fact) + '\n\n')
+        numresults += 1
 
+    results.close()
     # Sleep a bit before shutting down the server - to give clients time to
     # realize the job queue is empty and exit in an orderly way.
     time.sleep(2)

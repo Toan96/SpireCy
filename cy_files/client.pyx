@@ -9,15 +9,18 @@ from multiprocessing.managers import SyncManager
 
 cdef client_lib.node_t * cfl_list
 
-def call_c_CFL(str):
-    cfl_list = client_lib.CFL(str)
-    client_lib.print_list_reverse(cfl_list)
-    client_lib.free_list(cfl_list)
-
-
 PORTNUM = 5000
 AUTHKEY = b'abc'
 IP = '127.0.0.1'
+NUM_BLOCKS = 1
+
+def call_c_CFL(str):
+    cfl_list = client_lib.CFL(str)
+    client_lib.print_list_reverse(cfl_list)
+    factorization = client_lib.list_to_string(cfl_list, 0)
+    client_lib.free_list(cfl_list)
+    return factorization
+
 
 def factorizer_worker(job_q, result_q):
     """ A worker function to be launched in a separate process. Takes jobs from
@@ -34,8 +37,25 @@ def factorizer_worker(job_q, result_q):
         except queue.Empty:
             return
     """
-    block = job_q.get_nowait() # oppure bloccante
-    call_c_CFL(block[1])
+    result_dict = {}
+    while True:
+        #sleep(0.5)
+        try:
+            block = job_q.get_nowait() # oppure bloccante
+            read_id = 0
+            for i in range(len(block)):
+                if i % 2 == 0:
+                    print("\n")
+                    print(block[i])
+                    read_id = block[i]
+                else:
+                    factorization = call_c_CFL(block[i])
+                    print("\n")
+                    result_dict = {read_id: factorization}
+                    result_q.put(result_dict)
+        except queue.Empty:
+            return
+
 
 
 def mp_factorizer(shared_job_q, shared_result_q, nprocs):
@@ -79,7 +99,7 @@ def runclient():
     manager = make_client_manager(IP, PORTNUM, AUTHKEY)
     job_q = manager.get_job_q()
     result_q = manager.get_result_q()
-    mp_factorizer(job_q, result_q, 1) # num of blocks taken from queue
+    mp_factorizer(job_q, result_q, NUM_BLOCKS) # num of blocks taken from queue
 
 
 runclient()
