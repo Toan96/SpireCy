@@ -12,7 +12,7 @@ cdef client_lib.node_t * cfl_list
 PORTNUM = 5000
 AUTHKEY = b'abc'
 IP = '127.0.0.1'
-NUM_BLOCKS = 1
+NUM_BLOCKS = 2
 
 def call_c_CFL(str):
     cfl_list = client_lib.CFL(str)
@@ -25,23 +25,12 @@ def call_c_CFL(str):
 def factorizer_worker(job_q, result_q):
     """ A worker function to be launched in a separate process. Takes jobs from
         job_q - each job a list of numbers to factorize. When the job is done,
-        the result (dict mapping number -> list of factors) is placed into
-        result_q. Runs until job_q is empty.
-    """
-    """
-    while True:
-        try:
-            job = job_q.get_nowait()
-            outdict = {n: factorize_naive(n) for n in job}
-            result_q.put(outdict)
-        except queue.Empty:
-            return
+        the result is placed into result_q. Runs until job_q is empty.
     """
     result_dict = {}
     while True:
-        #sleep(0.5)
         try:
-            block = job_q.get_nowait() # oppure bloccante
+            block = job_q.get_nowait()
             read_id = 0
             for i in range(len(block)):
                 if i % 2 == 0:

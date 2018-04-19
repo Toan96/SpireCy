@@ -112,7 +112,7 @@ char *list_to_string(node_t *list, int reverse) { //0 true 1 false
 	    current->next = prev;
     }
 
-    int allocated = 200;
+    int allocated = 350;
     char *to_string = (char *) malloc(allocated);
     strcpy(to_string, "[ ");
     int length = 4; //memory for [ ]\0
@@ -121,9 +121,12 @@ char *list_to_string(node_t *list, int reverse) { //0 true 1 false
             allocated += strlen(current->factor); //cosi sempre precisa
             to_string = (char *) realloc(to_string, allocated);
         }
+        strcat(to_string, "\"");
         strcat(to_string, current->factor);
+        strcat(to_string, "\"");
         if (current->next != NULL)
-            strcat(to_string, ", ");
+            //strcat(to_string, ", ");
+            strcat(to_string, " ");
         length += strlen(current->factor);
         current = current->next;
     }
