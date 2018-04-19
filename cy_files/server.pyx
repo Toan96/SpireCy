@@ -68,32 +68,54 @@ def runserver():
     sent_blocks = Value(c_int, 0)
     last_block_size = Value(c_int, 0)
 
+    pos = fasta.tell()  # check file
+    row = fasta.readline()
+    if row == "" or row[0] != '>':
+        print("Errore file fasta")
+        return
+    fasta.seek(pos)
+
+    #start result process: save factorizations to file
     p = Process(
         target=write_results,
         args=(shared_result_q, sent_blocks, last_block_size))
-
     p.start()
 
+    first = True
+    last_block_size.value = -1
     while True:
         block = []
-        pos = fasta.tell()
-        if fasta.readline() == "":
-            break
-        fasta.seek(pos)
         for i in range(BLOCK_SIZE):
-            if i != 0:
-                pos = fasta.tell()
-                if fasta.readline() == "":
-                    last_block_size.value = i
-                    break
-                fasta.seek(pos)
-            block.append(fasta.readline().rstrip())
-            block.append(fasta.readline().rstrip())
+            #check reads and id, append them to block
+            part = ' '
+            while part[0] != '>': # or last_block_size.value is changed
+                if first:
+                    block.append(fasta.readline().rstrip()) #append first id to block
+                    read = fasta.readline().rstrip()
+                    first = False
+                else:
+                    pos = fasta.tell()
+                    part = fasta.readline()
+                    if part == "":
+                        block.append(read)
+                        last_block_size.value = i
+                        break
+                    elif part[0] == '>':
+                        block.append(read)
+                        fasta.seek(pos)
+                        first = True
+                    else:
+                        read += part.rstrip()
+
+            if last_block_size.value != -1: # end for
+                break
 
         #invio a coda
         shared_job_q.put(block)
         sent_blocks.value += 1
         print('blocco ' + repr(sent_blocks.value) + ' inviato')
+        if last_block_size.value != -1: # end while
+            break
     fasta.close()
 
     p.join()
