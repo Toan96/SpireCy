@@ -101,10 +101,11 @@ char *substring(char word[], int x, int y) {
 char *list_to_string(node_t *list, int reverse) { //0 true 1 false
 
     node_t *current = list;
-    node_t *prev = NULL;
     if (reverse == 0) {
+        node_t *prev = NULL;
+        node_t *tmp;
         while(current->next != NULL) {
-            node_t *tmp = current;
+            tmp = current;
             current = current->next;
             tmp->next = prev;
             prev = tmp;
@@ -112,29 +113,48 @@ char *list_to_string(node_t *list, int reverse) { //0 true 1 false
 	    current->next = prev;
     }
 
-    int allocated = 350;
-    char *to_string = (char *) malloc(allocated);
+    int allocated = 400;
+    char *to_string = malloc(allocated);
     strcpy(to_string, "[ ");
-    int length = 4; //memory for [ ]\0
+
+    int length = 5; //memory for [  ]\0
+    node_t *list_t = current;
     while (current != NULL) {
-        if (length + strlen(current->factor) > allocated) {
-            allocated += strlen(current->factor); //cosi sempre precisa
-            to_string = (char *) realloc(to_string, allocated);
+        if ((length + strlen(current->factor) + 3) > allocated) { //3memory for " "
+            allocated += (strlen(current->factor) + 3); //cosi sempre precisa oppure numero fisso
+            void *temp = realloc(to_string, allocated);
+            if (temp != NULL) {
+                to_string = temp;
+            } else {
+                printf("REALLOC FAILED");
+            }
+            //to_string = realloc(to_string, allocated);
         }
         strcat(to_string, "\"");
         strcat(to_string, current->factor);
         strcat(to_string, "\"");
-        if (current->next != NULL)
+        if (current->next != NULL) {
             //strcat(to_string, ", ");
             strcat(to_string, " ");
-        length += strlen(current->factor);
+            length += 1;
+        }
+        length += (strlen(current->factor) + 2);
         current = current->next;
     }
+
     strcat(to_string, " ]");
 
     if (strlen(to_string) < allocated) {
-        to_string = (char *) realloc(to_string, strlen(to_string));
+        void *temp = realloc(to_string, length);
+        if (temp != NULL) {
+            to_string = temp;
+        } else {
+            printf("REALLOC FAILED");
+        }
+        //to_string = realloc(to_string, length);
     }
+
+    free_list(list_t);
     return to_string;
 }
 

@@ -7,7 +7,6 @@ AUTHKEY = b'abc'
 LOCALHOST = '127.0.0.1'
 BLOCK_SIZE = 1000
 
-# problema su windows
 def make_server_manager(port, authkey):
     """ Create a manager for the server, listening on the given port.
         Return a manager object with get_job_q and get_result_q methods.
@@ -18,7 +17,7 @@ def make_server_manager(port, authkey):
     # This is based on the examples in the official docs of multiprocessing.
     # get_{job|result}_q return synchronized proxies for the actual Queue
     # objects.
-    class JobQueueManager(SyncManager):
+    class JobQueueManager(SyncManager): #can't picklable on windows
         pass
 
     JobQueueManager.register('get_job_q', callable=lambda: job_q)
@@ -83,18 +82,22 @@ def runserver():
 
     first = True
     last_block_size.value = -1
+    part = ' '#
     while True:
-        block = []
+        if part == ' ': #first time#
+            block = [fasta.readline().rstrip()]#
+        else:
+            block = [part.rstrip()] #every other block first id#
         for i in range(BLOCK_SIZE):
             #check reads and id, append them to block
             part = ' '
             while part[0] != '>': # or last_block_size.value is changed
                 if first:
-                    block.append(fasta.readline().rstrip()) #append first id to block
+                    #block.append(fasta.readline().rstrip()) #append first id to block##
                     read = fasta.readline().rstrip()
                     first = False
                 else:
-                    pos = fasta.tell()
+                    #pos = fasta.tell()##
                     part = fasta.readline()
                     if part == "":
                         block.append(read)
@@ -102,7 +105,9 @@ def runserver():
                         break
                     elif part[0] == '>':
                         block.append(read)
-                        fasta.seek(pos)
+                        if i < BLOCK_SIZE -1:#
+                            block.append(part.rstrip())
+                        #fasta.seek(pos)##
                         first = True
                     else:
                         read += part.rstrip()

@@ -1,4 +1,5 @@
 cimport client_lib
+from libc.stdlib cimport free
 
 import multiprocessing
 try:
@@ -15,10 +16,15 @@ IP = '127.0.0.1'
 NUM_BLOCKS = 2
 
 def call_c_CFL(str):
+    cdef char *factorization_c
     cfl_list = client_lib.CFL(str)
     client_lib.print_list_reverse(cfl_list)
-    factorization = client_lib.list_to_string(cfl_list, 0)
-    client_lib.free_list(cfl_list)
+    factorization_c = client_lib.list_to_string(cfl_list, 0)
+    #free fact created by malloc in c function (need import module level from cpython.mem cimport PyMem_Free)
+    try:
+        factorization = <bytes> factorization_c
+    finally:
+        free(factorization_c)
     return factorization
 
 
