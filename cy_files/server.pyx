@@ -11,7 +11,7 @@ def make_server_manager(port, authkey):
     """ Create a manager for the server, listening on the given port.
         Return a manager object with get_job_q and get_result_q methods.
     """
-    job_q = Queue()
+    job_q = Queue() #todo 1/4 della ram totale
     result_q = Queue()
 
     # This is based on the examples in the official docs of multiprocessing.
@@ -44,15 +44,16 @@ def write_results(result_q, sent_blocks, last_block_size):
     # Wait until all results are ready in shared_result_q
     numresults = 0
 
-    while numresults < ((sent_blocks.value * BLOCK_SIZE) - last_block_size.value):
+    #numresults inizia da 0 quindi <
+    while numresults < ((sent_blocks.value * BLOCK_SIZE) - (BLOCK_SIZE - last_block_size.value)):
         # prende da coda_result id e fact e scrive su file
         #print(sent_blocks.value, BLOCK_SIZE, last_block_size.value, numresults)
-        outdict = result_q.get()
+        outdict = result_q.get()#todo piu get
         for read_id, fact in outdict.items():
             results.write(str(read_id) + '\n' + str(fact) + '\n\n')
         numresults += 1
 
-    results.close()
+    results.close() #close if ctrl+c
 
 
 def runserver():
@@ -118,16 +119,20 @@ def runserver():
         #invio a coda
         shared_job_q.put(block)
         sent_blocks.value += 1
-        print('blocco ' + repr(sent_blocks.value) + ' inviato')
+        #print('blocco ' + repr(sent_blocks.value) + ' inviato')
         if last_block_size.value != -1: # end while
             break
-    fasta.close()
+    fasta.close() #close fasta if ctrl+c is pressed
+    print('blocchi inviati')
 
+    # se il server non si spegne alcune read sono andate perdute e il processo resta in attesa
     p.join()
+
     # Sleep a bit before shutting down the server - to give clients time to
     # realize the job queue is empty and exit in an orderly way.
-    time.sleep(2)
+    #time.sleep(2) #non necessario il join dà tempo ai client
     print("shutting down...")
     manager.shutdown()
+
 
 runserver()

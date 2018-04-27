@@ -13,20 +13,20 @@ cdef client_lib.node_t * cfl_list
 PORTNUM = 5000
 AUTHKEY = b'abc'
 IP = '127.0.0.1'
-NUM_BLOCKS = 2
+NUM_BLOCKS = 3 #ottimo su una macchina(4 core)
+MAX_EMPTY_RECEIVED = 5
 
 def call_c_CFL(str):
     cdef char *factorization_c
     cfl_list = client_lib.CFL(str)
-    client_lib.print_list_reverse(cfl_list)
+    #client_lib.print_list_reverse(cfl_list)
     factorization_c = client_lib.list_to_string(cfl_list, 0)
-    #free fact created by malloc in c function (need import module level from cpython.mem cimport PyMem_Free)
+    #free fact created by malloc in c function (other free need import module level from cpython.mem cimport PyMem_Free )
     try:
         factorization = <bytes> factorization_c
     finally:
         free(factorization_c)
     return factorization
-
 
 def factorizer_worker(job_q, result_q):
     """ A worker function to be launched in a separate process. Takes jobs from
@@ -34,23 +34,47 @@ def factorizer_worker(job_q, result_q):
         the result is placed into result_q. Runs until job_q is empty.
     """
     result_dict = {}
+    empty_received = 0
     while True:
         try:
-            block = job_q.get_nowait()
+            block = job_q.get_nowait() #bloccante
             read_id = 0
             for i in range(len(block)):
                 if i % 2 == 0:
-                    print("\n")
-                    print(block[i])
+                    #print("\n")
+                    #print(block[i])
                     read_id = block[i]
                 else:
                     factorization = call_c_CFL(block[i])
-                    print("\n")
+                    #print("\n")
                     result_dict = {read_id: factorization}
                     result_q.put(result_dict)
         except queue.Empty:
+            if job_q.empty():
+                empty_received += 1
+            if empty_received > MAX_EMPTY_RECEIVED:
+                return
+        #handling lost of reads
+        except KeyboardInterrupt: #try to handle kill by user, try to factorize last taken block and only after return
+            print('pressed CTRL+C, waiting for last block factorizations..')
+            is_busy = True
+            while is_busy: #if something went wrong and user continue to kill process, otherwise one time
+                try:
+                    while i < (len(block)):
+                        if i % 2 == 0:
+                            #print("\n")
+                            #print(block[i])
+                            read_id = block[i]
+                        else:
+                            factorization = call_c_CFL(block[i])
+                            #print("\n")
+                            result_dict = {read_id: factorization}
+                            result_q.put(result_dict)
+                        i += 1
+                    is_busy = False
+                except KeyboardInterrupt:
+                    print('another CTRL+C, waiting for last block factorizations..')
             return
-
 
 
 def mp_factorizer(shared_job_q, shared_result_q, nprocs):

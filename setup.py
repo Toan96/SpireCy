@@ -16,7 +16,8 @@ setup(
 """
 
 ext_modules = cythonize([Extension("client", ["cy_files/client.pyx", 'c_files/utils.c', 'c_files/factorizations.c']),
-                         Extension("server", ["cy_files/server.pyx"]) ])
+                         Extension("server", ["cy_files/server.pyx"]),
+                         Extension("seq", ["cy_files/seq.pyx", 'c_files/utils.c', 'c_files/factorizations.c'])])
 
 
 setup(
