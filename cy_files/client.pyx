@@ -45,10 +45,11 @@ def factorizer_worker(job_q, result_q):
                     #print(block[i])
                     read_id = block[i]
                 else:
-                    factorization = call_c_CFL(block[i])
+                    block[i] = call_c_CFL(block[i])
                     #print("\n")
-                    result_dict = {read_id: factorization}
-                    result_q.put(result_dict)
+                    #result_dict = {read_id: factorization}
+                    #result_q.put(result_dict)
+            result_q.put(block)
         except queue.Empty:
             if job_q.empty():
                 empty_received += 1
@@ -66,11 +67,12 @@ def factorizer_worker(job_q, result_q):
                             #print(block[i])
                             read_id = block[i]
                         else:
-                            factorization = call_c_CFL(block[i])
+                            block[i] = call_c_CFL(block[i])
                             #print("\n")
-                            result_dict = {read_id: factorization}
-                            result_q.put(result_dict)
+                            #result_dict = {read_id: factorization}
+                            #result_q.put(result_dict)
                         i += 1
+                    result_q.put(block)
                     is_busy = False
                 except KeyboardInterrupt:
                     print('another CTRL+C, waiting for last block factorizations..')

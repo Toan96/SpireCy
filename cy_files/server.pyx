@@ -1,4 +1,4 @@
-import datetime, time
+import datetime, time, os
 from multiprocessing import Queue, Process, Value
 from multiprocessing.managers import SyncManager
 
@@ -11,7 +11,9 @@ def make_server_manager(port, authkey):
     """ Create a manager for the server, listening on the given port.
         Return a manager object with get_job_q and get_result_q methods.
     """
-    job_q = Queue() #todo 1/4 della ram totale
+    totalMemory = int(os.popen("free -m").readlines()[1].split()[3])
+    #print(totalMemory)
+    job_q = Queue(totalMemory/4) #1/4 della ram libera (considerando 1MB a blocco)
     result_q = Queue()
 
     # This is based on the examples in the official docs of multiprocessing.
@@ -29,7 +31,7 @@ def make_server_manager(port, authkey):
     return manager
 
 
-def write_results(result_q, sent_blocks, last_block_size):
+def write_results(result_q, sent_blocks, last_block_size, all_sent):
     time.sleep(2)
     # create results file
     filename = './fasta/results.txt'
@@ -45,13 +47,18 @@ def write_results(result_q, sent_blocks, last_block_size):
     numresults = 0
 
     #numresults inizia da 0 quindi <
-    while numresults < ((sent_blocks.value * BLOCK_SIZE) - (BLOCK_SIZE - last_block_size.value)):
+    while numresults < sent_blocks.value or all_sent.value != 1:#((sent_blocks.value * BLOCK_SIZE) - (BLOCK_SIZE - last_block_size.value)):# or all_sent.value != 1:
         # prende da coda_result id e fact e scrive su file
         #print(sent_blocks.value, BLOCK_SIZE, last_block_size.value, numresults)
-        outdict = result_q.get()#todo piu get
-        for read_id, fact in outdict.items():
-            results.write(str(read_id) + '\n' + str(fact) + '\n\n')
-        numresults += 1
+        res_block = result_q.get()
+        #for read_id, fact in outdict.items():
+        #    results.write(str(read_id) + '\n' + str(fact) + '\n\n')
+        for i in range(len(res_block)):
+            if i % 2 == 0:
+                results.write(res_block[i] + '\n')
+            else:
+                results.write(res_block[i] + '\n\n')
+        numresults += 1 #under else if count reads
 
     results.close() #close if ctrl+c
 
@@ -67,6 +74,7 @@ def runserver():
     from ctypes import c_int
     sent_blocks = Value(c_int, 0)
     last_block_size = Value(c_int, 0)
+    all_sent = Value(c_int, 0) #false py
 
     pos = fasta.tell()  # check file
     row = fasta.readline()
@@ -78,7 +86,7 @@ def runserver():
     #start result process: save factorizations to file
     p = Process(
         target=write_results,
-        args=(shared_result_q, sent_blocks, last_block_size))
+        args=(shared_result_q, sent_blocks, last_block_size, all_sent))
     p.start()
 
     first = True
@@ -123,6 +131,7 @@ def runserver():
         if last_block_size.value != -1: # end while
             break
     fasta.close() #close fasta if ctrl+c is pressed
+    all_sent.value = 1 #true py
     print('blocchi inviati')
 
     # se il server non si spegne alcune read sono andate perdute e il processo resta in attesa
