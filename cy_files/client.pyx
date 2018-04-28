@@ -13,7 +13,7 @@ cdef client_lib.node_t * cfl_list
 PORTNUM = 5000
 AUTHKEY = b'abc'
 IP = '127.0.0.1'
-NUM_BLOCKS = 3 #ottimo su una macchina(4 core)
+NUM_BLOCKS = multiprocessing.cpu_count()/2 if multiprocessing.cpu_count() > 1 else 1 #3-4 ottimo su una macchina(4 core)
 MAX_EMPTY_RECEIVED = 5
 
 def call_c_CFL(str):
@@ -21,7 +21,7 @@ def call_c_CFL(str):
     cfl_list = client_lib.CFL(str)
     #client_lib.print_list_reverse(cfl_list)
     factorization_c = client_lib.list_to_string(cfl_list, 0)
-    #free fact created by malloc in c function (other free need import module level from cpython.mem cimport PyMem_Free )
+    #free fact created by malloc in c function (other free need import module level from cpython.mem cimport PyMem_Free)
     try:
         factorization = <bytes> factorization_c
     finally:
