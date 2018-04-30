@@ -38,6 +38,7 @@ def factorizer_worker(job_q, result_q):
     while True:
         try:
             block = job_q.get_nowait() #bloccante
+            print('noexcept')
             read_id = 0
             for i in range(len(block)):
                 if i % 2 == 0:
@@ -51,9 +52,12 @@ def factorizer_worker(job_q, result_q):
                     #result_q.put(result_dict)
             result_q.put(block)
         except queue.Empty:
+            print('except')
             if job_q.empty():
+                print('except2')
                 empty_received += 1
             if empty_received > MAX_EMPTY_RECEIVED:
+                print('except20')
                 return
         #handling lost of reads
         except KeyboardInterrupt: #try to handle kill by user, try to factorize last taken block and only after return
