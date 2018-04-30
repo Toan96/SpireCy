@@ -14,7 +14,7 @@ PORTNUM = 5000
 AUTHKEY = b'abc'
 IP = '127.0.0.1'
 NUM_BLOCKS = multiprocessing.cpu_count()/2 if multiprocessing.cpu_count() > 1 else 1 #3-4 ottimo su una macchina(4 core)
-MAX_EMPTY_RECEIVED = 5
+MAX_EMPTY_RECEIVED = 10
 
 def call_c_CFL(str):
     cdef char *factorization_c
@@ -38,7 +38,7 @@ def factorizer_worker(job_q, result_q):
     while True:
         try:
             block = job_q.get_nowait() #bloccante
-            print('noexcept')
+            #print('noexcept')
             read_id = 0
             for i in range(len(block)):
                 if i % 2 == 0:
@@ -52,12 +52,12 @@ def factorizer_worker(job_q, result_q):
                     #result_q.put(result_dict)
             result_q.put(block)
         except queue.Empty:
-            print('except')
+            #print('except')
             if job_q.empty():
-                print('except2')
+                #print('except2')
                 empty_received += 1
             if empty_received > MAX_EMPTY_RECEIVED:
-                print('except20')
+                #print('except20')
                 return
         #handling lost of reads
         except KeyboardInterrupt: #try to handle kill by user, try to factorize last taken block and only after return

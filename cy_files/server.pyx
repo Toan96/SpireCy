@@ -54,9 +54,12 @@ def make_server_manager(port, authkey):
     return manager
 
 
+mutex = Lock()
 def write_results(result_q, sent_blocks, all_sent, run_path, different_fasta_in_queue, file_id):
     #time.sleep(2)
     # create results file
+    #print os.getpid()
+    #print " started\n"
     filename = '/results.txt' #magari file_id
     #import os
     #if os.path.exists(filename):
@@ -79,23 +82,25 @@ def write_results(result_q, sent_blocks, all_sent, run_path, different_fasta_in_
             print('inizio salvataggio risultati fasta ' + file_id)
             first = False
         if different_fasta_in_queue.value > 1: #probabilmente ci sono blocchi di file diversi nelle code
-            if res_block[0].split('.')[0] != file_id:
-                #blocco non corretto
-                print('blocco non corretto, dovrebbbe essere ' + file_id + 'ma ' + res_block[0].split('.')[0] + '\n')
-                result_q.put(res_block)
-                import random
-                time.sleep(TIME_SLEEP)
-                continue
+            with mutex:
+                if res_block[0].split('.')[0] != file_id:
+                    #blocco non corretto
+                   # print('blocco non corretto, dovrebbbe essere ' + file_id + 'ma ' + res_block[0].split('.')[0] + '\n')
+                    result_q.put(res_block)
+                    continue
 
         #for read_id, fact in outdict.items():
         #    results.write(str(read_id) + '\n' + str(fact) + '\n\n')
         for i in range(len(res_block)):
             if i % 2 == 0:
                 results.write(res_block[i] + '\n')
+                #print("\nwriting " + res_block[i])
             else:
                 results.write(res_block[i] + '\n\n')
         numresults += 1 #under else if count reads
     different_fasta_in_queue.decrement()
+    #print os.getpid()
+    #print " terminated\n"
     print('risultati salvati fasta ' + file_id)
     results.close() #close if ctrl+c
 
@@ -110,7 +115,7 @@ def runserver():
 
     #fasta = open('./fasta/example.fasta', 'r')
     #fasta = open('/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001/SRR000001/SRR000001.fasta', 'r')
-    dir_path_experiment = '/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001'
+    dir_path_experiment = '/mnt/c/Users/Sijack/Documents/SAMPLES/SRP000001'
     #print("List of runs in " + str(dir_path_experiment))
     list_runs = os.listdir(dir_path_experiment)
     res_procs = []
@@ -193,6 +198,7 @@ def runserver():
             #print('blocco ' + repr(sent_blocks.value) + ' inviato')
             if last_block_size.value != -1: # end while
                 break
+
         fasta.close() #close fasta if ctrl+c is pressed
         all_sent.value = 1 #true py
         print('blocchi inviati fasta in ' + run)
