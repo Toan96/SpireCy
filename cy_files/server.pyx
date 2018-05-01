@@ -1,5 +1,9 @@
 import datetime, time, os
-from multiprocessing import Queue, Process, Value, Lock
+from multiprocessing import Process, Value, Lock, queues
+try:
+    from multiprocessing import Queue
+except ImportError:
+    from multiprocessing import queue as Queue
 from multiprocessing.managers import SyncManager
 
 from ctypes import c_int
@@ -8,8 +12,45 @@ PORTNUM = 5000
 AUTHKEY = b'abc'
 LOCALHOST = '127.0.0.1'
 BLOCK_SIZE = 1000
-MAX_DIFFERENT_FASTA = 2
-TIME_SLEEP = 3
+MAX_DIFFERENT_FASTA = 3
+TIME_SLEEP = 1
+
+#used for peek function to check block id
+class QueuePeek(queues.Queue):
+
+    def peek(self, id_to_check, block=True, timeout=None):
+        self._notempty.acquire()
+        try:
+            if not block:
+                if not self.qsize():
+                    from queue import Empty
+                    raise Empty
+            elif timeout is None:
+                while not self.qsize():
+                    self._notempty.wait()
+            elif timeout < 0:
+                raise ValueError("'timeout' must be a non-negative number")
+            else:
+                endtime = datetime._time() + timeout
+                while not self.qsize():
+                    remaining = endtime - datetime._time()
+                    if remaining <= 0.0:
+                        from queue import Empty
+                        raise Empty
+                    self._notempty.wait(remaining)
+            item = self._peek(id_to_check)
+            return item
+        finally:
+            self._notempty.release()
+
+    def _peek(self, id_to_check):
+        block = self._recv()
+        if block[0].split('.')[0] != id_to_check:
+            self._buffer.append(block)
+            return 'blocco non corretto' #None crea problemi
+        else:
+            return block
+
 
 #used for synchronized shared counter for different fasta in queue
 class Counter(object):
@@ -36,8 +77,8 @@ def make_server_manager(port, authkey):
     """
     totalMemory = int(os.popen("free -m").readlines()[1].split()[3])
     #print(totalMemory)
-    job_q = Queue(totalMemory/4) #1/4 della ram libera (considerando 1MB a blocco)
-    result_q = Queue()
+    job_q = QueuePeek(totalMemory/4) #1/4 della ram libera (considerando 1MB a blocco)
+    result_q = QueuePeek()
 
     # This is based on the examples in the official docs of multiprocessing.
     # get_{job|result}_q return synchronized proxies for the actual Queue
@@ -54,7 +95,6 @@ def make_server_manager(port, authkey):
     return manager
 
 
-mutex = Lock()
 def write_results(result_q, sent_blocks, all_sent, run_path, different_fasta_in_queue, file_id):
     #time.sleep(2)
     # create results file
@@ -77,17 +117,21 @@ def write_results(result_q, sent_blocks, all_sent, run_path, different_fasta_in_
     while numresults < sent_blocks.value or all_sent.value != 1: #((sent_blocks.value * BLOCK_SIZE) - (BLOCK_SIZE - last_block_size.value)):# or all_sent.value != 1:
         # prende da coda_result id e fact e scrive su file
         #print(sent_blocks.value, BLOCK_SIZE, last_block_size.value, numresults)
-        res_block = result_q.get()
+        res_block = None #scope
+        print('while ' + file_id)
+        if different_fasta_in_queue.value() > 1: #probabilmente ci sono blocchi di file diversi nelle code
+            if result_q.qsize() #todo problema qui forse, se ci sono piu file fa la peek ma forse la coda dei risultati è vuota e si blocca
+                res_block = result_q.peek(file_id)
+            if res_block == 'blocco non corretto':
+                print('blocco non corretto')
+                time.sleep(TIME_SLEEP)
+                continue
+        else:
+            res_block = result_q.get()
+
         if first:
             print('inizio salvataggio risultati fasta ' + file_id)
             first = False
-        if different_fasta_in_queue.value > 1: #probabilmente ci sono blocchi di file diversi nelle code
-            with mutex:
-                if res_block[0].split('.')[0] != file_id:
-                    #blocco non corretto
-                   # print('blocco non corretto, dovrebbbe essere ' + file_id + 'ma ' + res_block[0].split('.')[0] + '\n')
-                    result_q.put(res_block)
-                    continue
 
         #for read_id, fact in outdict.items():
         #    results.write(str(read_id) + '\n' + str(fact) + '\n\n')
@@ -115,7 +159,7 @@ def runserver():
 
     #fasta = open('./fasta/example.fasta', 'r')
     #fasta = open('/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001/SRR000001/SRR000001.fasta', 'r')
-    dir_path_experiment = '/mnt/c/Users/Sijack/Documents/SAMPLES/SRP000001'
+    dir_path_experiment = '/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001'
     #print("List of runs in " + str(dir_path_experiment))
     list_runs = os.listdir(dir_path_experiment)
     res_procs = []
