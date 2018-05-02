@@ -1,7 +1,7 @@
 cimport client_lib
 from libc.stdlib cimport free
 
-import multiprocessing
+import time, multiprocessing
 try:
     import queue
 except ImportError:
@@ -14,7 +14,8 @@ PORTNUM = 5000
 AUTHKEY = b'abc'
 IP = '127.0.0.1'
 NUM_BLOCKS = multiprocessing.cpu_count()/2 if multiprocessing.cpu_count() > 1 else 1 #3-4 ottimo su una macchina(4 core)
-MAX_EMPTY_RECEIVED = 10
+MAX_EMPTY_RECEIVED = 20
+RESET_EMPTY_AFTER = 100
 
 def call_c_CFL(str):
     cdef char *factorization_c
@@ -28,17 +29,33 @@ def call_c_CFL(str):
         free(factorization_c)
     return factorization
 
+'''
+def call_c_CFL_icfl(str, c):
+    cdef char *factorization_c
+    cfl_list = client_lib.CFL_icfl(str, c)
+    #client_lib.print_list_reverse(cfl_list)
+    factorization_c = client_lib.list_to_string(cfl_list, 0)
+    #free fact created by malloc in c function (other free need import module level from cpython.mem cimport PyMem_Free)
+    try:
+        factorization = <bytes> factorization_c
+    finally:
+        free(factorization_c)
+    return factorization
+'''
 def factorizer_worker(job_q, result_q):
     """ A worker function to be launched in a separate process. Takes jobs from
         job_q - each job a list of numbers to factorize. When the job is done,
         the result is placed into result_q. Runs until job_q is empty.
     """
-    result_dict = {}
+    #result_dict = {}
     empty_received = 0
+    no_empty_count = 0 # to reset empty count
     while True:
         try:
             block = job_q.get_nowait() #bloccante
-            #print('noexcept')
+            if block == 'fine':
+                job_q.put(block)
+                return
             read_id = 0
             for i in range(len(block)):
                 if i % 2 == 0:
@@ -51,13 +68,19 @@ def factorizer_worker(job_q, result_q):
                     #result_dict = {read_id: factorization}
                     #result_q.put(result_dict)
             result_q.put(block)
+            if no_empty_count == RESET_EMPTY_AFTER:
+                no_empty_count = 0
+                empty_received = 0
+            else:
+                no_empty_count += 1
         except queue.Empty:
-            #print('except')
+            time.sleep(1)
             if job_q.empty():
-                #print('except2')
                 empty_received += 1
+                time.sleep(2)
+                no_empty_count = 0
             if empty_received > MAX_EMPTY_RECEIVED:
-                #print('except20')
+                print('client received too much empty, shutting down..')
                 return
         #handling lost of reads
         except KeyboardInterrupt: #try to handle kill by user, try to factorize last taken block and only after return

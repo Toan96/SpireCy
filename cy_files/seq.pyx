@@ -77,5 +77,5 @@ for run in list_runs:
 
     results.close()
     fasta.close()
-    print('finito fasta in' + run)
+    print('finito fasta in ' + run)
 print('finito')

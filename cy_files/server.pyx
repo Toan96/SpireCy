@@ -1,5 +1,5 @@
 import datetime, time, os
-from multiprocessing import Process, Value, Lock, queues
+from multiprocessing import Process, Value, Lock
 try:
     from multiprocessing import Queue
 except ImportError:
@@ -12,45 +12,8 @@ PORTNUM = 5000
 AUTHKEY = b'abc'
 LOCALHOST = '127.0.0.1'
 BLOCK_SIZE = 1000
-MAX_DIFFERENT_FASTA = 3
+MAX_DIFFERENT_FASTA = 5
 TIME_SLEEP = 1
-
-#used for peek function to check block id
-class QueuePeek(queues.Queue):
-
-    def peek(self, id_to_check, block=True, timeout=None):
-        self._notempty.acquire()
-        try:
-            if not block:
-                if not self.qsize():
-                    from queue import Empty
-                    raise Empty
-            elif timeout is None:
-                while not self.qsize():
-                    self._notempty.wait()
-            elif timeout < 0:
-                raise ValueError("'timeout' must be a non-negative number")
-            else:
-                endtime = datetime._time() + timeout
-                while not self.qsize():
-                    remaining = endtime - datetime._time()
-                    if remaining <= 0.0:
-                        from queue import Empty
-                        raise Empty
-                    self._notempty.wait(remaining)
-            item = self._peek(id_to_check)
-            return item
-        finally:
-            self._notempty.release()
-
-    def _peek(self, id_to_check):
-        block = self._recv()
-        if block[0].split('.')[0] != id_to_check:
-            self._buffer.append(block)
-            return 'blocco non corretto' #None crea problemi
-        else:
-            return block
-
 
 #used for synchronized shared counter for different fasta in queue
 class Counter(object):
@@ -76,9 +39,8 @@ def make_server_manager(port, authkey):
         Return a manager object with get_job_q and get_result_q methods.
     """
     totalMemory = int(os.popen("free -m").readlines()[1].split()[3])
-    #print(totalMemory)
-    job_q = QueuePeek(totalMemory/4) #1/4 della ram libera (considerando 1MB a blocco)
-    result_q = QueuePeek()
+    job_q = Queue(totalMemory/4) #1/4 della ram libera (considerando 1MB a blocco)
+    result_q = Queue()
 
     # This is based on the examples in the official docs of multiprocessing.
     # get_{job|result}_q return synchronized proxies for the actual Queue
@@ -95,58 +57,67 @@ def make_server_manager(port, authkey):
     return manager
 
 
-def write_results(result_q, sent_blocks, all_sent, run_path, different_fasta_in_queue, file_id):
-    #time.sleep(2)
-    # create results file
-    #print os.getpid()
-    #print " started\n"
-    filename = '/results.txt' #magari file_id
-    #import os
-    #if os.path.exists(filename):
-    #   mode = 'a' # append if already exists
-    #else:
-    mode = 'w' # make a new file if not
-    results = open(run_path + filename, mode)
-    results.write(datetime.datetime.now().ctime())
-    results.write("\n\n")
-    # Wait until all results are ready in shared_result_q
-    numresults = 0
+def write_results(result_q, sent_blocks_list, all_sent_list, dir_path_experiment, different_fasta_in_queue, id_list):
+    while result_q.empty():
+        time.sleep(TIME_SLEEP)
 
-    first = True
-    #numresults inizia da 0 quindi <
-    while numresults < sent_blocks.value or all_sent.value != 1: #((sent_blocks.value * BLOCK_SIZE) - (BLOCK_SIZE - last_block_size.value)):# or all_sent.value != 1:
-        # prende da coda_result id e fact e scrive su file
-        #print(sent_blocks.value, BLOCK_SIZE, last_block_size.value, numresults)
-        res_block = None #scope
-        print('while ' + file_id)
-        if different_fasta_in_queue.value() > 1: #probabilmente ci sono blocchi di file diversi nelle code
-            if result_q.qsize() #todo problema qui forse, se ci sono piu file fa la peek ma forse la coda dei risultati è vuota e si blocca
-                res_block = result_q.peek(file_id)
-            if res_block == 'blocco non corretto':
-                print('blocco non corretto')
-                time.sleep(TIME_SLEEP)
-                continue
-        else:
-            res_block = result_q.get()
+    wrong_blocks = []
+    list_runs = os.listdir(dir_path_experiment)
+    file_number = 0
+    for run in list_runs:
+        while len(id_list) <= 0:
+            time.sleep(TIME_SLEEP)
+        path = dir_path_experiment + '/' + id_list[file_number]
+        filename = '/results_' + id_list[file_number] + '.txt'
+        mode = 'w' # make a new file if not
+        results = open(path + filename, mode)
+        results.write(datetime.datetime.now().ctime())
+        results.write("\n\n")
+        # Wait until all results are ready in shared_result_q
+        numresults = 0
 
-        if first:
-            print('inizio salvataggio risultati fasta ' + file_id)
-            first = False
+        for block in wrong_blocks:
+            if block[0].split('.')[0] == ('>' + id_list[file_number]):
+                for i in range(len(res_block)):
+                    if i % 2 == 0:
+                        results.write(res_block[i] + '\n')
+                    else:
+                        results.write(res_block[i] + '\n\n')
+                numresults += 1
+                wrong_blocks.remove(block)
 
-        #for read_id, fact in outdict.items():
-        #    results.write(str(read_id) + '\n' + str(fact) + '\n\n')
-        for i in range(len(res_block)):
-            if i % 2 == 0:
-                results.write(res_block[i] + '\n')
-                #print("\nwriting " + res_block[i])
-            else:
-                results.write(res_block[i] + '\n\n')
-        numresults += 1 #under else if count reads
-    different_fasta_in_queue.decrement()
-    #print os.getpid()
-    #print " terminated\n"
-    print('risultati salvati fasta ' + file_id)
-    results.close() #close if ctrl+c
+        first = True
+        #numresults inizia da 0 quindi <
+        while numresults < sent_blocks_list[file_number] or all_sent_list[file_number] != 1: #((sent_blocks.value * BLOCK_SIZE) - (BLOCK_SIZE - last_block_size.value)):# or all_sent.value != 1:
+            # prende da coda_result id e fact e scrive su file
+            res_block = result_q.get() #bloccante
+            if different_fasta_in_queue.value() > 1: #probabilmente ci sono blocchi di file diversi nelle code
+                if res_block[0].split('.')[0] != ('>' + id_list[file_number]):
+                    wrong_blocks.append(res_block)
+                    continue
+            #scriviamo su file se blocco corretto altrimenti in lista blocchi e salvati su file a iterazioni successive
+
+            if first:
+                print('inizio salvataggio risultati fasta ' + id_list[file_number])
+                first = False
+
+            #results.write(str(read_id) + '\n' + str(fact) + '\n\n')
+            for i in range(len(res_block)):
+                if i % 2 == 0:
+                    results.write(res_block[i] + '\n')
+                else:
+                    results.write(res_block[i] + '\n\n')
+            numresults += 1
+
+        print('risultati salvati fasta ' + id_list[file_number])
+        #del id_list[0]
+        #del sent_blocks_list[0]
+        #del all_sent_list[0]
+        file_number += 1
+        different_fasta_in_queue.decrement()
+        results.close() #close if ctrl+c
+    if len(wrong_blocks) > 0:
+        print('list wrong blocks len = ' + repr(len(wrong_blocks)))
 
 
 def runserver():
@@ -160,23 +131,32 @@ def runserver():
     #fasta = open('./fasta/example.fasta', 'r')
     #fasta = open('/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001/SRR000001/SRR000001.fasta', 'r')
     dir_path_experiment = '/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001'
-    #print("List of runs in " + str(dir_path_experiment))
     list_runs = os.listdir(dir_path_experiment)
-    res_procs = []
-    #sent_blocks_list = []
+    sent_blocks_list = manager.list()
     #last_block_size_list = []
-    #all_sent_list = []
+    all_sent_list = manager.list()
+    id_list = manager.list()
+
+    #start result process: save factorizations to file
+    p = Process(
+        target=write_results,
+        args=(shared_result_q, sent_blocks_list, all_sent_list, dir_path_experiment, different_fasta_in_queue, id_list)) #last_block_size if needed
+    p.start()
+    file_number = 0
     for run in list_runs:
-        sent_blocks = Value(c_int, 0)
-        last_block_size = Value(c_int, 0)
-        all_sent = Value(c_int, 0) #false py
+        #sent_blocks = Value(c_int, 0)
+        sent_blocks_list.insert(file_number, 0)
+        #last_block_size = Value(c_int, 0)
+        last_block_size = -1
+        #all_sent = Value(c_int, 0) #false py
+        all_sent_list.insert(file_number, 0)
+        id_list.append(run)
         run_path = dir_path_experiment + "/" + run
-        #test_factorizations_run_by_fasta(run_path)
         list_fasta = os.listdir(run_path)
         list_fasta = [file for file in list_fasta if file.endswith('.fasta')]
         #print(list_fasta)
 
-        if len(list_fasta) == 0:#or len(list_fasta) > 1:
+        if len(list_fasta) == 0: #or len(list_fasta) > 1:
             print("La directory deve contenere un file .fasta")
             return
 
@@ -189,69 +169,61 @@ def runserver():
             return
         fasta.seek(pos)
 
-        while different_fasta_in_queue.value() >= MAX_DIFFERENT_FASTA: #3 file aperti e non fattorizzati
+        while different_fasta_in_queue.value() >= MAX_DIFFERENT_FASTA: #numero di file aperti e non fattorizzati
             time.sleep(TIME_SLEEP)
         different_fasta_in_queue.increment()
 
-        #start result process: save factorizations to file
-        p = Process(
-            target=write_results,
-            args=(shared_result_q, sent_blocks, all_sent, run_path, different_fasta_in_queue, row.split('.')[0])) #last_block_size if needed
-        res_procs.append(p)
-        p.start()
-
         first = True
-        last_block_size.value = -1
-        part = ' '#
+        part = ' '
         print('inizio invio blocchi fasta ' + run)
         while True:
-            if part == ' ': #first time#
+            if part == ' ': #first time
                 block = [fasta.readline().rstrip()]#
             else:
-                block = [part.rstrip()] #every other block first id#
+                block = [part.rstrip()] #every other block first id
             for i in range(BLOCK_SIZE):
                 #check reads and id, append them to block
                 part = ' '
                 while part[0] != '>': # or last_block_size.value is changed
                     if first:
-                        #block.append(fasta.readline().rstrip()) #append first id to block##
                         read = fasta.readline().rstrip()
                         first = False
                     else:
-                        #pos = fasta.tell()##
                         part = fasta.readline()
                         if part == "":
                             block.append(read)
-                            last_block_size.value = i
+                            last_block_size = i
                             break
                         elif part[0] == '>':
                             block.append(read)
-                            if i < BLOCK_SIZE -1:#
+                            if i < BLOCK_SIZE -1:
                                 block.append(part.rstrip())
-                            #fasta.seek(pos)##
                             first = True
                         else:
                             read += part.rstrip()
 
-                if last_block_size.value != -1: # end for
+                if last_block_size != -1: # end for
                     break
 
             #invio a coda
             shared_job_q.put(block)
-            sent_blocks.value += 1
-            #print('blocco ' + repr(sent_blocks.value) + ' inviato')
-            if last_block_size.value != -1: # end while
+            sent_blocks_list[file_number] += 1
+            if last_block_size != -1: # end while
                 break
 
         fasta.close() #close fasta if ctrl+c is pressed
-        all_sent.value = 1 #true py
+        all_sent_list[file_number] = 1 #true py
+        file_number += 1
         print('blocchi inviati fasta in ' + run)
 
     print('tutti i file fasta sono stati inviati, in attesa dei risultati..')
 
+    #to kill client
+    for i in range(10):
+        shared_job_q.put('fine')
+
     # se il server non si spegne alcune read sono andate perdute e i processi restano in attesa
-    for p in res_procs:
-        p.join()
+    p.join()
 
     # Sleep a bit before shutting down the server - to give clients time to
     # realize the job queue is empty and exit in an orderly way.
