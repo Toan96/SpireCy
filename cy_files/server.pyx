@@ -8,12 +8,15 @@ from multiprocessing.managers import SyncManager
 
 from ctypes import c_int
 
+DIR_PATH_EXPERIMENT = '/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001'
 PORTNUM = 5000
 AUTHKEY = b'abc'
-LOCALHOST = '127.0.0.1'
+LOCALHOST = '' #localhost ma visibile anche dall'esterno
 BLOCK_SIZE = 1000
-MAX_DIFFERENT_FASTA = 5
+MAX_DIFFERENT_FASTA = 10
+MAX_LIST_SIZE = 50
 TIME_SLEEP = 1
+FINE_TO_SEND = 10
 
 #used for synchronized shared counter for different fasta in queue
 class Counter(object):
@@ -45,7 +48,7 @@ def make_server_manager(port, authkey):
     # This is based on the examples in the official docs of multiprocessing.
     # get_{job|result}_q return synchronized proxies for the actual Queue
     # objects.
-    class JobQueueManager(SyncManager): #can't picklable on windows
+    class JobQueueManager(SyncManager): #not picklable on windows
         pass
 
     JobQueueManager.register('get_job_q', callable=lambda: job_q)
@@ -61,12 +64,17 @@ def write_results(result_q, sent_blocks_list, all_sent_list, dir_path_experiment
     while result_q.empty():
         time.sleep(TIME_SLEEP)
 
-    wrong_blocks = []
+    wrong_blocks = [] #usato per mantenere blocchi di file successivi
+    lost_count = 0 #usato per tenere traccia di possibili blocchi persi
     list_runs = os.listdir(dir_path_experiment)
     file_number = 0
     for run in list_runs:
-        while len(id_list) <= 0:
+        #sleep finche' non e' iniziato l'invio dei blocchi del corrispondente file
+        while len(id_list) <= file_number:
             time.sleep(TIME_SLEEP)
+        #serve solo quando limitiamo
+        #if id_list[file_number] == 'fine':
+        #    break
         path = dir_path_experiment + '/' + id_list[file_number]
         filename = '/results_' + id_list[file_number] + '.txt'
         mode = 'w' # make a new file if not
@@ -76,6 +84,7 @@ def write_results(result_q, sent_blocks_list, all_sent_list, dir_path_experiment
         # Wait until all results are ready in shared_result_q
         numresults = 0
 
+        #elimino dalla lista i blocchi del file aperto in questa iterazione (se aggiunti in precedenza)
         for block in wrong_blocks:
             if block[0].split('.')[0] == ('>' + id_list[file_number]):
                 for i in range(len(res_block)):
@@ -88,20 +97,24 @@ def write_results(result_q, sent_blocks_list, all_sent_list, dir_path_experiment
 
         first = True
         #numresults inizia da 0 quindi <
-        while numresults < sent_blocks_list[file_number] or all_sent_list[file_number] != 1: #((sent_blocks.value * BLOCK_SIZE) - (BLOCK_SIZE - last_block_size.value)):# or all_sent.value != 1:
+        while numresults < sent_blocks_list[file_number] or all_sent_list[file_number] != 1: #((sent_blocks * BLOCK_SIZE) - (BLOCK_SIZE - last_block_size)):# o all_sent != 1:
             # prende da coda_result id e fact e scrive su file
             res_block = result_q.get() #bloccante
             if different_fasta_in_queue.value() > 1: #probabilmente ci sono blocchi di file diversi nelle code
+                #scriviamo su file se blocco corretto (continue) altrimenti si aggiunge a lista blocchi e salvato su file a iterazioni successive
                 if res_block[0].split('.')[0] != ('>' + id_list[file_number]):
                     wrong_blocks.append(res_block)
+                    print('\n\nblocco (primo id' + res_block[0] + ') aggiunto a lista_wrong (ora ' + repr(len(wrong_blocks)) + ' elementi)' + ', sto cercando ' + id_list[file_number] + '\n')
+                    if len(wrong_blocks) > MAX_LIST_SIZE:
+                        print('\n\nlista wrong molto grande, e\' possibile che si sia verificata una perdita di blocchi\n')
+                        lost_count += 1
+                        break
                     continue
-            #scriviamo su file se blocco corretto altrimenti in lista blocchi e salvati su file a iterazioni successive
 
             if first:
                 print('inizio salvataggio risultati fasta ' + id_list[file_number])
                 first = False
 
-            #results.write(str(read_id) + '\n' + str(fact) + '\n\n')
             for i in range(len(res_block)):
                 if i % 2 == 0:
                     results.write(res_block[i] + '\n')
@@ -110,14 +123,12 @@ def write_results(result_q, sent_blocks_list, all_sent_list, dir_path_experiment
             numresults += 1
 
         print('risultati salvati fasta ' + id_list[file_number])
-        #del id_list[0]
-        #del sent_blocks_list[0]
-        #del all_sent_list[0]
+
         file_number += 1
         different_fasta_in_queue.decrement()
-        results.close() #close if ctrl+c
+        results.close() #to do: close if ctrl+c
     if len(wrong_blocks) > 0:
-        print('list wrong blocks len = ' + repr(len(wrong_blocks)))
+        print('list wrong blocks len = ' + repr(len(wrong_blocks)) + '\npossibile perdita di blocchi (' + repr(lost_count) + ')\n\n')
 
 
 def runserver():
@@ -126,35 +137,34 @@ def runserver():
     shared_job_q = manager.get_job_q()
     shared_result_q = manager.get_result_q()
 
-    different_fasta_in_queue = Counter(0) #indicates possible blocks of different fasta(indicates number of fasta)
+    different_fasta_in_queue = Counter(0) #indica numero di fasta aperti(possibile presenza di blocchi di fasta diversi in code)
 
     #fasta = open('./fasta/example.fasta', 'r')
     #fasta = open('/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001/SRR000001/SRR000001.fasta', 'r')
-    dir_path_experiment = '/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001'
+    dir_path_experiment = DIR_PATH_EXPERIMENT
     list_runs = os.listdir(dir_path_experiment)
     sent_blocks_list = manager.list()
     #last_block_size_list = []
     all_sent_list = manager.list()
     id_list = manager.list()
 
-    #start result process: save factorizations to file
+    #start result process: factorizations to file
     p = Process(
         target=write_results,
-        args=(shared_result_q, sent_blocks_list, all_sent_list, dir_path_experiment, different_fasta_in_queue, id_list)) #last_block_size if needed
+        args=(shared_result_q, sent_blocks_list, all_sent_list, dir_path_experiment, different_fasta_in_queue, id_list)) #last_block_size se necessario
     p.start()
     file_number = 0
     for run in list_runs:
-        #sent_blocks = Value(c_int, 0)
+        #serve a limitare file analizzati
+        #if file_number == 1:
+        #    break
         sent_blocks_list.insert(file_number, 0)
-        #last_block_size = Value(c_int, 0)
-        last_block_size = -1
-        #all_sent = Value(c_int, 0) #false py
+        last_block_size = -1 #non piu' utilizzato (solo per uscire da cicli)
         all_sent_list.insert(file_number, 0)
         id_list.append(run)
         run_path = dir_path_experiment + "/" + run
         list_fasta = os.listdir(run_path)
         list_fasta = [file for file in list_fasta if file.endswith('.fasta')]
-        #print(list_fasta)
 
         if len(list_fasta) == 0: #or len(list_fasta) > 1:
             print("La directory deve contenere un file .fasta")
@@ -177,14 +187,14 @@ def runserver():
         part = ' '
         print('inizio invio blocchi fasta ' + run)
         while True:
-            if part == ' ': #first time
+            if part == ' ': #primo id letto
                 block = [fasta.readline().rstrip()]#
             else:
-                block = [part.rstrip()] #every other block first id
+                block = [part.rstrip()] #primo id letto per ogni altro blocco
             for i in range(BLOCK_SIZE):
-                #check reads and id, append them to block
+                #check read e id, aggiunta al blocco
                 part = ' '
-                while part[0] != '>': # or last_block_size.value is changed
+                while part[0] != '>': # o last_block_size cambiato
                     if first:
                         read = fasta.readline().rstrip()
                         first = False
@@ -211,23 +221,25 @@ def runserver():
             if last_block_size != -1: # end while
                 break
 
-        fasta.close() #close fasta if ctrl+c is pressed
+        fasta.close() #to do: close fasta if ctrl+c is pressed
         all_sent_list[file_number] = 1 #true py
         file_number += 1
-        print('blocchi inviati fasta in ' + run)
+        print('blocchi inviati fasta ' + run)
 
+    #serve solo quando limitiamo
+    #id_list.append('fine')
     print('tutti i file fasta sono stati inviati, in attesa dei risultati..')
 
-    #to kill client
-    for i in range(10):
+    #invio blocchi sentinella per terminare client
+    for i in range(FINE_TO_SEND):
         shared_job_q.put('fine')
 
-    # se il server non si spegne alcune read sono andate perdute e i processi restano in attesa
+    # se il server non si spegne alcune read sono andate perdute e il processo resta in attesa
     p.join()
 
     # Sleep a bit before shutting down the server - to give clients time to
     # realize the job queue is empty and exit in an orderly way.
-    #time.sleep(2) #non necessario il join dà tempo ai client
+    time.sleep(TIME_SLEEP) #tempo per client di ricevere blocchi fine e chiudersi
     print("shutting down...")
     manager.shutdown()
 

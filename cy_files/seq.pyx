@@ -19,12 +19,15 @@ def call_c_CFL(str):
 
 BLOCK_SIZE = 1
 filename = '/results.txt'
-#fasta = open('/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001/SRR000001/SRR000001.fasta', 'r')
 dir_path_experiment = '/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001'
+#fasta = open('/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001/SRR000001/SRR000001.fasta', 'r')
 #print("List of runs in " + str(dir_path_experiment))
 list_runs = os.listdir(dir_path_experiment)
-
+#per limitare file analizzati
+#i = 0
 for run in list_runs:
+    #if i == 1: #numero file da analizzare
+     #   break
     run_path = dir_path_experiment + "/" + run
     #test_factorizations_run_by_fasta(run_path)
     list_fasta = os.listdir(run_path)
@@ -53,9 +56,9 @@ for run in list_runs:
     while True:
         if part == ' ':  #first time#
             results.write(fasta.readline().rstrip())  #primo id su file
-        #check reads and id
+        #check read e id
         part = ' '
-        while part[0] != '>':  # or last_block_size is changed
+        while part[0] != '>':  # o last_block_size cambiato
             if first:
                 read = fasta.readline().rstrip()
                 first = False
@@ -65,7 +68,7 @@ for run in list_runs:
                     last_block_size = 10
                     break
                 elif part[0] == '>':
-                    #part su file fact su file
+                    #part(id) su file e fact su file
                     fact = call_c_CFL(read)
                     results.write(str(part) + '\n' + str(fact) + '\n\n')
                     first = True
@@ -74,8 +77,8 @@ for run in list_runs:
 
         if last_block_size != -1:  # end for
             break
-
+    #i += 1
     results.close()
     fasta.close()
-    print('finito fasta in ' + run)
+    print('finito fasta ' + run)
 print('finito')

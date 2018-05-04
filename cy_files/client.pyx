@@ -14,8 +14,8 @@ PORTNUM = 5000
 AUTHKEY = b'abc'
 IP = '127.0.0.1'
 NUM_BLOCKS = multiprocessing.cpu_count()/2 if multiprocessing.cpu_count() > 1 else 1 #3-4 ottimo su una macchina(4 core)
-MAX_EMPTY_RECEIVED = 20
-RESET_EMPTY_AFTER = 100
+MAX_EMPTY_RECEIVED = 10
+RESET_EMPTY_AFTER = 500
 
 def call_c_CFL(str):
     cdef char *factorization_c
@@ -29,7 +29,7 @@ def call_c_CFL(str):
         free(factorization_c)
     return factorization
 
-'''
+
 def call_c_CFL_icfl(str, c):
     cdef char *factorization_c
     cfl_list = client_lib.CFL_icfl(str, c)
@@ -41,32 +41,32 @@ def call_c_CFL_icfl(str, c):
     finally:
         free(factorization_c)
     return factorization
-'''
+
+
 def factorizer_worker(job_q, result_q):
     """ A worker function to be launched in a separate process. Takes jobs from
         job_q - each job a list of numbers to factorize. When the job is done,
         the result is placed into result_q. Runs until job_q is empty.
     """
-    #result_dict = {}
     empty_received = 0
-    no_empty_count = 0 # to reset empty count
+    no_empty_count = 0 # reset empty count
+    #to do: provare break e non return eccezioni perche sembra che non esce dalla join
     while True:
         try:
-            block = job_q.get_nowait() #bloccante
+            block = job_q.get_nowait()
+            #if block is not None:
             if block == 'fine':
-                job_q.put(block)
+                #try:
+                job_q.put_nowait(block)
                 return
+                #except queue.Full:
+                    #return
             read_id = 0
             for i in range(len(block)):
                 if i % 2 == 0:
-                    #print("\n")
-                    #print(block[i])
                     read_id = block[i]
                 else:
                     block[i] = call_c_CFL(block[i])
-                    #print("\n")
-                    #result_dict = {read_id: factorization}
-                    #result_q.put(result_dict)
             result_q.put(block)
             if no_empty_count == RESET_EMPTY_AFTER:
                 no_empty_count = 0
@@ -75,6 +75,7 @@ def factorizer_worker(job_q, result_q):
                 no_empty_count += 1
         except queue.Empty:
             time.sleep(1)
+            #try:
             if job_q.empty():
                 empty_received += 1
                 time.sleep(2)
@@ -82,28 +83,29 @@ def factorizer_worker(job_q, result_q):
             if empty_received > MAX_EMPTY_RECEIVED:
                 print('client received too much empty, shutting down..')
                 return
-        #handling lost of reads
-        except KeyboardInterrupt: #try to handle kill by user, try to factorize last taken block and only after return
+            #except (EOFError, IOError) as exception:
+             #   print('queue closed, shutting down...')
+              #  return
+        #gestisce perdita di read in caso di kill da user
+        except KeyboardInterrupt: #fattorizza blocco gia preso, poi termina
             print('pressed CTRL+C, waiting for last block factorizations..')
             is_busy = True
-            while is_busy: #if something went wrong and user continue to kill process, otherwise one time
+            while is_busy: #necessario se utente continua a cercare di chiudere il processo, altrimenti eseguito una volta
                 try:
                     while i < (len(block)):
                         if i % 2 == 0:
-                            #print("\n")
-                            #print(block[i])
                             read_id = block[i]
                         else:
                             block[i] = call_c_CFL(block[i])
-                            #print("\n")
-                            #result_dict = {read_id: factorization}
-                            #result_q.put(result_dict)
                         i += 1
                     result_q.put(block)
                     is_busy = False
                 except KeyboardInterrupt:
                     print('another CTRL+C, waiting for last block factorizations..')
             return
+        #except (EOFError, IOError) as exception:
+         #   print('queue closed, shutting down..')
+          #  return
 
 
 def mp_factorizer(shared_job_q, shared_result_q, nprocs):
@@ -147,7 +149,7 @@ def runclient():
     manager = make_client_manager(IP, PORTNUM, AUTHKEY)
     job_q = manager.get_job_q()
     result_q = manager.get_result_q()
-    mp_factorizer(job_q, result_q, NUM_BLOCKS) # num of blocks taken from queue
+    mp_factorizer(job_q, result_q, NUM_BLOCKS) # num of blocks presi dalla coda
 
 
 runclient()
