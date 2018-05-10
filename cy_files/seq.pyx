@@ -17,6 +17,21 @@ def call_c_CFL(str):
         free(factorization_c)
     return factorization
 
+
+def call_c_CFL_icfl(str, c):
+    cdef char *factorization_c
+    cfl_list = client_lib.CFL_icfl_for_alphabet(str, c,'NTGCA')
+    #client_lib.print_list_reverse(cfl_list)
+    factorization_c = client_lib.list_to_string(cfl_list, 0)
+    #free fact created by malloc in c function (other free need import module level from cpython.mem cimport PyMem_Free)
+    try:
+        factorization = <bytes> factorization_c
+    finally:
+        free(factorization_c)
+    return factorization
+
+
+C = 10
 BLOCK_SIZE = 1
 filename = '/results.txt'
 dir_path_experiment = '/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001'
@@ -24,10 +39,10 @@ dir_path_experiment = '/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001'
 #print("List of runs in " + str(dir_path_experiment))
 list_runs = os.listdir(dir_path_experiment)
 #per limitare file analizzati
-#i = 0
+i = 0
 for run in list_runs:
-    #if i == 1: #numero file da analizzare
-     #   break
+    if i == 5: #numero file da analizzare
+       break
     run_path = dir_path_experiment + "/" + run
     #test_factorizations_run_by_fasta(run_path)
     list_fasta = os.listdir(run_path)
@@ -53,6 +68,7 @@ for run in list_runs:
     first = True
     last_block_size = -1
     part = ' '  #
+    #j = 1
     while True:
         if part == ' ':  #first time#
             results.write(fasta.readline().rstrip())  #primo id su file
@@ -70,6 +86,8 @@ for run in list_runs:
                 elif part[0] == '>':
                     #part(id) su file e fact su file
                     fact = call_c_CFL(read)
+                    #print j
+                    #j+=1
                     results.write(str(part) + '\n' + str(fact) + '\n\n')
                     first = True
                 else:
@@ -77,7 +95,7 @@ for run in list_runs:
 
         if last_block_size != -1:  # end for
             break
-    #i += 1
+    i += 1
     results.close()
     fasta.close()
     print('finito fasta ' + run)

@@ -16,6 +16,7 @@ IP = '127.0.0.1'
 NUM_BLOCKS = multiprocessing.cpu_count()/2 if multiprocessing.cpu_count() > 1 else 1 #3-4 ottimo su una macchina(4 core)
 MAX_EMPTY_RECEIVED = 10
 RESET_EMPTY_AFTER = 500
+C = 10
 
 def call_c_CFL(str):
     cdef char *factorization_c
@@ -32,7 +33,7 @@ def call_c_CFL(str):
 
 def call_c_CFL_icfl(str, c):
     cdef char *factorization_c
-    cfl_list = client_lib.CFL_icfl(str, c)
+    cfl_list = client_lib.CFL_icfl_for_alphabet(str, c, 'NTGCA')
     #client_lib.print_list_reverse(cfl_list)
     factorization_c = client_lib.list_to_string(cfl_list, 0)
     #free fact created by malloc in c function (other free need import module level from cpython.mem cimport PyMem_Free)
@@ -81,8 +82,9 @@ def factorizer_worker(job_q, result_q):
                 time.sleep(2)
                 no_empty_count = 0
             if empty_received > MAX_EMPTY_RECEIVED:
-                print('client received too much empty, shutting down..')
-                return
+                print('client received too many empty, sleep')
+                time.sleep(5)
+                #return
             #except (EOFError, IOError) as exception:
              #   print('queue closed, shutting down...')
               #  return

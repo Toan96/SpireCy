@@ -19,4 +19,6 @@ cdef extern from "../c_files/factorizations.h":
 
     node_t *CFL(char word[])
 
-    node_t *CFL_icfl(char word[], int C);
+    node_t *CFL_icfl(char word[], int C)
+
+    node_t *CFL_icfl_for_alphabet(char word[], int C, char list_alphabet[])
