@@ -33,7 +33,7 @@ def call_c_CFL(str):
 
 def call_c_CFL_icfl(str, c):
     cdef char *factorization_c
-    cfl_list = client_lib.CFL_icfl_for_alphabet(str, c, 'NTGCA')
+    cfl_list = client_lib.CFL_icfl(str, c)
     #client_lib.print_list_reverse(cfl_list)
     factorization_c = client_lib.list_to_string(cfl_list, 0)
     #free fact created by malloc in c function (other free need import module level from cpython.mem cimport PyMem_Free)
@@ -67,7 +67,7 @@ def factorizer_worker(job_q, result_q):
                 if i % 2 == 0:
                     read_id = block[i]
                 else:
-                    block[i] = call_c_CFL(block[i])
+                    block[i] = call_c_CFL_icfl(block[i], C)
             result_q.put(block)
             if no_empty_count == RESET_EMPTY_AFTER:
                 no_empty_count = 0

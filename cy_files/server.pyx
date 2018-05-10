@@ -113,8 +113,8 @@ def runserver():
     file_number = 0
     for run in list_runs:
         #serve a limitare file analizzati
-        if file_number == 5:
-           break
+        #if file_number == 5:
+         #  break
         sent_blocks_list.insert(file_number, 0)
         last_block_size = -1 #non piu' utilizzato (solo per uscire da cicli)
         all_sent_list.insert(file_number, 0)
