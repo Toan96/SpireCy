@@ -8,7 +8,8 @@ from multiprocessing.managers import SyncManager
 
 from ctypes import c_int
 
-DIR_PATH_EXPERIMENT = '/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001'
+#DIR_PATH_EXPERIMENT = '/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001'
+DIR_PATH_EXPERIMENT = '/home/spire/Scrivania/SAMPLES/SRP000001'
 PORTNUM = 5000
 AUTHKEY = b'abc'
 LOCALHOST = '' #localhost ma visibile anche dall'esterno
