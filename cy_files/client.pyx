@@ -12,7 +12,7 @@ cdef client_lib.node_t * cfl_list
 
 PORTNUM = 5000
 AUTHKEY = b'abc'
-IP = '127.0.0.1'
+IP = '192.168.5.2'
 NUM_BLOCKS = multiprocessing.cpu_count()/2 if multiprocessing.cpu_count() > 1 else 1 #3-4 ottimo su una macchina(4 core)
 MAX_EMPTY_RECEIVED = 10
 RESET_EMPTY_AFTER = 500
@@ -44,6 +44,32 @@ def call_c_CFL_icfl(str, c):
     return factorization
 
 
+def call_c_ICFL(str):
+    cdef char *factorization_c
+    cfl_list = client_lib.ICFL_recursive(str)
+    #client_lib.print_list_reverse(cfl_list)
+    factorization_c = client_lib.list_to_string(cfl_list, 1)
+    #free fact created by malloc in c function (other free need import module level from cpython.mem cimport PyMem_Free)
+    try:
+        factorization = <bytes> factorization_c
+    finally:
+        free(factorization_c)
+    return factorization
+
+
+def call_c_ICFL_cfl(str, c):
+    cdef char *factorization_c
+    cfl_list = client_lib.ICFL_cfl(str, c)
+    #client_lib.print_list_reverse(cfl_list)
+    factorization_c = client_lib.list_to_string(cfl_list, 1)
+    #free fact created by malloc in c function (other free need import module level from cpython.mem cimport PyMem_Free)
+    try:
+        factorization = <bytes> factorization_c
+    finally:
+        free(factorization_c)
+    return factorization
+
+
 def factorizer_worker(job_q, result_q):
     """ A worker function to be launched in a separate process. Takes jobs from
         job_q - each job a list of numbers to factorize. When the job is done,
@@ -67,7 +93,7 @@ def factorizer_worker(job_q, result_q):
                 if i % 2 == 0:
                     read_id = block[i]
                 else:
-                    block[i] = call_c_CFL_icfl(block[i], C)
+                    block[i] = call_c_CFL(block[i])
             result_q.put(block)
             if no_empty_count == RESET_EMPTY_AFTER:
                 no_empty_count = 0
