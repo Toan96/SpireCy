@@ -67,8 +67,8 @@ def write_results(result_q, sent_blocks_list, all_sent_list, dir_path_experiment
                     file_id_list[curr_res_index] = block_id
                 else:
                     file_pointer_list[curr_res_index] = open(file_path, 'w')
-                    file_pointer_list[curr_res_index].write(datetime.datetime.now().ctime())
-                    file_pointer_list[curr_res_index].write("\n\n")
+                    #file_pointer_list[curr_res_index].write(datetime.datetime.now().ctime())
+                    #file_pointer_list[curr_res_index].write("\n\n")
                     print('inizio salvataggio risultati fasta ' + block_id)
                     file_id_list[curr_res_index] = block_id
                     opened_file_list.append(block_id)
@@ -83,11 +83,12 @@ def write_results(result_q, sent_blocks_list, all_sent_list, dir_path_experiment
             if i % 2 == 0:
                 file_pointer_list[curr_res_index].write(block[i] + '\n')
             else:
-                file_pointer_list[curr_res_index].write(block[i] + '\n\n')
+                file_pointer_list[curr_res_index].write(block[i] + '\n')
         num_result[index_to_update] += 1
         if num_result[index_to_update] >= sent_blocks_list[index_to_update] and all_sent_list[index_to_update] == 1:
             print('risultati salvati fasta ' + block_id)
             file_pointer_list[curr_res_index].close()
+            file_pointer_list[curr_res_index] = None # check
     print('tutti i risultati sono stati salvati sui rispettivi file')
 
 

@@ -57,10 +57,12 @@ def call_c_ICFL_cfl(str, c):
     return factorization
 
 
-C = 10
+C = 50
 BLOCK_SIZE = 1
-#dir_path_experiment = '/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001'
-dir_path_experiment = '/home/spire/Scrivania/SAMPLES/SRP000001'
+dir_path_experiment = '/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001'
+#dir_path_experiment = '/home/spire/Scrivania/SAMPLES/SRP000001'
+#dir_path_experiment = '/mnt/e/DATASET_BAM'
+#dir_path_experiment = '/mnt/c/Users/Antonio/Desktop/DATASET_BAM'
 #fasta = open('/mnt/c/Users/Antonio/Documents/SAMPLES/SRP000001/SRR000001/SRR000001.fasta', 'r')
 #print("List of runs in " + str(dir_path_experiment))
 list_runs = os.listdir(dir_path_experiment)
@@ -89,8 +91,8 @@ for run in list_runs:
     filename = '/results_' + run + '.txt'
     mode = 'w' # make a new file if not
     results = open(run_path + filename, mode)
-    results.write(datetime.datetime.now().ctime())
-    results.write("\n\n")
+    #results.write(datetime.datetime.now().ctime())
+    #results.write("\n\n")
 
     first = True
     last_block_size = -1
@@ -98,7 +100,7 @@ for run in list_runs:
     #j = 1
     while True:
         if part == ' ':  #first time#
-            results.write(fasta.readline().rstrip())  #primo id su file
+            results.write(fasta.readline().rstrip() + '\n')  #primo id su file
         #check read e id
         part = ' '
         while part[0] != '>':  # o last_block_size cambiato
@@ -106,8 +108,10 @@ for run in list_runs:
                 read = fasta.readline().rstrip()
                 first = False
             else:
-                part = fasta.readline()
+                part = fasta.readline().rstrip()
                 if part == "":
+                    fact = call_c_CFL(read)
+                    results.write(str(fact))
                     last_block_size = 10
                     break
                 elif part[0] == '>':
@@ -115,7 +119,7 @@ for run in list_runs:
                     fact = call_c_CFL(read)
                     #print j
                     #j+=1
-                    results.write(str(part) + '\n' + str(fact) + '\n\n')
+                    results.write(str(fact) + '\n' + str(part) + '\n')
                     first = True
                 else:
                     read += part.rstrip()
